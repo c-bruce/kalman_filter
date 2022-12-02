@@ -41,6 +41,9 @@ def vectorized_integration(dt, input_vector):
         output_vector.append(output_vector[i] + input_vector[i] * dt)
     return np.array(output_vector[1:])
 
+def get_angle_from_acc(a, b):
+    return np.arctan2(b, a)
+
 def variance(input_vector):
     mean = np.mean(input_vector)
     n = len(input_vector)
@@ -53,22 +56,25 @@ def covariance(input_vector1, input_vector2):
     return sum((input_vector1 - mean1) * (input_vector2 - mean2)) / (n - 1)
 
 time = get_time(df, dt, freq)
+AccX_SU, AccY_SU, AccZ_SU, GyroX_SU, GyroY_SU, GyroZ_SU = get_raw_in_sensor_units(df)
 AccX_PU, AccY_PU, AccZ_PU, GyroX_PU, GyroY_PU, GyroZ_PU = get_raw_in_physical_units(df, acc_scale_factor, gyro_scale_factor)
 
 AngX_PU = vectorized_integration(dt, GyroX_PU)
 AngY_PU = vectorized_integration(dt, GyroY_PU)
 AngZ_PU = vectorized_integration(dt, GyroZ_PU)
 
-# plt.plot(time, AccX_PU)
+alpha = get_angle_from_acc(AccX_SU, AccZ_SU)
+
+plt.plot(time, AccX_PU)
 # plt.plot(time, AccY_PU)
-# plt.plot(time, AccZ_PU)
+plt.plot(time, AccZ_PU)
 
 # plt.plot(time, GyroX_PU)
-plt.plot(time, GyroY_PU)
+# plt.plot(time, GyroY_PU)
 # plt.plot(time, GyroZ_PU)
 
 # plt.plot(time, AngX_PU)
-plt.plot(time, AngY_PU)
+# plt.plot(time, AngY_PU)
 # plt.plot(time, AngZ_PU)
 plt.show()
 
@@ -76,9 +82,9 @@ plt.show()
 # Step 0: Get initial state and covariance matrix
 # Use first 0.04 seconds of raw AccY_PU and GyroY_PU data
 window = int(0.04 / dt) # Size of window for getting sensor readings over
-x_k = np.array([np.mean(AngY_PU[0:window]), np.mean(GyroY_PU[0:window])])
-P_k = np.array([[variance(AngY_PU[0:window]), covariance(AngY_PU[0:window], GyroY_PU[0:window])],
-                [covariance(GyroY_PU[0:window], AngY_PU[0:window]), variance(GyroY_PU[0:window])]])
+x_k = np.array([np.mean(alpha[0:window]), np.mean(GyroY_PU[0:window])])
+P_k = np.array([[variance(alpha[0:window]), covariance(alpha[0:window], GyroY_PU[0:window])],
+                [covariance(GyroY_PU[0:window], alpha[0:window]), variance(GyroY_PU[0:window])]])
 
 # Step 1: Prediction step
 F_k = np.array([[1, dt],
@@ -91,6 +97,21 @@ Q_k = np.array([[0, 0],
 # Get prediction
 x_k = np.dot(F_k, x_k) + np.dot(B_k, u_k)
 P_k = np.dot(F_k, np.dot(P_k, F_k.T)) + Q_k
+# Print prediction
+print(f"Predicted x_k: {x_k}")
+print(f"Predicted P_k: {P_k}")
 
 # Step 2: Update step
 # Get new sensor readings
+z_k = np.array([np.mean(alpha[1:window+1]), np.mean(GyroY_PU[1:window+1])])
+R_k = np.array([[variance(alpha[1:window+1]), covariance(alpha[1:window+1], GyroY_PU[1:window+1])],
+                [covariance(GyroY_PU[1:window+1], alpha[1:window+1]), variance(GyroY_PU[1:window+1])]])
+H_k = np.array([[1, 0],
+                [0, 1]]) # Transformation matrix
+# Calculate Kalman gain
+K = np.dot(P_k, np.dot(H_k.T, np.linalg.inv(np.dot(H_k, np.dot(P_k, H_k)) + R_k)))
+x_k = x_k + np.dot(K, (z_k - np.dot(H_k, x_k)))
+P_k = P_k - np.dot(K, np.dot(H_k, P_k))
+
+print(f"Updated x_k: {x_k}")
+print(f"Updated P_k: {P_k}")
