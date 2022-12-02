@@ -39,7 +39,18 @@ def vectorized_integration(dt, input_vector):
     output_vector = [0]
     for i in range(len(input_vector)):
         output_vector.append(output_vector[i] + input_vector[i] * dt)
-    return output_vector[1:]
+    return np.array(output_vector[1:])
+
+def variance(input_vector):
+    mean = np.mean(input_vector)
+    n = len(input_vector)
+    return sum((input_vector - mean)**2) / (n - 1)
+
+def covariance(input_vector1, input_vector2):
+    mean1 = np.mean(input_vector1)
+    mean2 = np.mean(input_vector2)
+    n = len(input_vector1)
+    return sum((input_vector1 - mean1) * (input_vector2 - mean2)) / (n - 1)
 
 time = get_time(df, dt, freq)
 AccX_PU, AccY_PU, AccZ_PU, GyroX_PU, GyroY_PU, GyroZ_PU = get_raw_in_physical_units(df, acc_scale_factor, gyro_scale_factor)
@@ -52,11 +63,34 @@ AngZ_PU = vectorized_integration(dt, GyroZ_PU)
 # plt.plot(time, AccY_PU)
 # plt.plot(time, AccZ_PU)
 
-plt.plot(time, GyroX_PU)
-#plt.plot(time, GyroY_PU)
-#plt.plot(time, GyroZ_PU)
+# plt.plot(time, GyroX_PU)
+plt.plot(time, GyroY_PU)
+# plt.plot(time, GyroZ_PU)
 
-plt.plot(time, AngX_PU)
-#plt.plot(time, AngY_PU)
-#plt.plot(time, AngZ_PU)
+# plt.plot(time, AngX_PU)
+plt.plot(time, AngY_PU)
+# plt.plot(time, AngZ_PU)
 plt.show()
+
+# KALMAN FILTER
+# Step 0: Get initial state and covariance matrix
+# Use first 0.04 seconds of raw AccY_PU and GyroY_PU data
+window = int(0.04 / dt) # Size of window for getting sensor readings over
+x_k = np.array([np.mean(AngY_PU[0:window]), np.mean(GyroY_PU[0:window])])
+P_k = np.array([[variance(AngY_PU[0:window]), covariance(AngY_PU[0:window], GyroY_PU[0:window])],
+                [covariance(GyroY_PU[0:window], AngY_PU[0:window]), variance(GyroY_PU[0:window])]])
+
+# Step 1: Prediction step
+F_k = np.array([[1, dt],
+                [0, 1]]) # Prediction matrix
+B_k = np.array([[0, 0],
+                [0, 0]]) # Control matrix
+u_k = np.array([0, 0]) # Control vector
+Q_k = np.array([[0, 0],
+                [0, 0]]) # Untracked noise
+# Get prediction
+x_k = np.dot(F_k, x_k) + np.dot(B_k, u_k)
+P_k = np.dot(F_k, np.dot(P_k, F_k.T)) + Q_k
+
+# Step 2: Update step
+# Get new sensor readings
