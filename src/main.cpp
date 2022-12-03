@@ -326,15 +326,15 @@ void setup()
   // BM3.attach(bm3_PIN, 1000, 2000);
   // BM4.attach(bm4_PIN, 1000, 2000);
   Serial.print("AccX");
-  Serial.print(", ");
+  Serial.print(",");
   Serial.print("AccY");
-  Serial.print(", ");
+  Serial.print(",");
   Serial.print("AccZ");
-  Serial.print(", ");
+  Serial.print(",");
   Serial.print("GyroX");
-  Serial.print(", ");
+  Serial.print(",");
   Serial.print("GyroY");
-  Serial.print(", ");
+  Serial.print(",");
   Serial.println("GyroZ");
 
   loop_timer = micros(); // Reset the loop timer
@@ -344,15 +344,15 @@ void loop()
 {
   readMPUdata();
   Serial.print(AccX);
-  Serial.print(", ");
+  Serial.print(",");
   Serial.print(AccY);
-  Serial.print(", ");
+  Serial.print(",");
   Serial.print(AccZ);
-  Serial.print(", ");
+  Serial.print(",");
   Serial.print(GyroX);
-  Serial.print(", ");
+  Serial.print(",");
   Serial.print(GyroY);
-  Serial.print(", ");
+  Serial.print(",");
   Serial.println(GyroZ);
 
   // loop_timer = micros();

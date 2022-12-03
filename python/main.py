@@ -5,7 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # GET DATA
-df = pd.read_csv('001_mpu6050_RAW.csv')
+df = pd.read_csv('002_mpu6050_RAW.csv')
 
 # CONSTANTS
 dt = 0.004 # [s]
@@ -42,7 +42,12 @@ def vectorized_integration(input_vector, dt):
     return np.array(output_vector[1:])
 
 def get_angle_from_acc(a, b):
-    return np.arctan2(b, a)
+    return np.degrees(np.arctan2(b, a) + 1.5)
+
+# def get_alpha_from_acc(AccX, AccY, AccZ):
+#     total_vector_acc = np.sqrt(sum([AccX**2, AccY**2, AccZ**2]))
+#     print(total_vector_acc)
+#     return np.arcsin(AccY/total_vector_acc) * -57.296
 
 def get_angle_from_complimentary_filter(a, b, input_vector, dt):
     output_vector = []
@@ -72,8 +77,10 @@ AngY_PU = vectorized_integration(GyroY_PU, dt)
 AngZ_PU = vectorized_integration(GyroZ_PU, dt)
 
 # alpha = AngY_PU
-alpha = get_angle_from_acc(AccX_SU, AccZ_SU)
-# alpha = get_angle_from_complimentary_filter(AccX_SU, AccZ_SU, GyroY_PU, dt)
+alpha = get_angle_from_acc(AccX_PU, AccZ_PU)
+# alpha = get_angle_from_complimentary_filter(AccX_PU, AccZ_PU, GyroY_PU, dt)
+alpha_CF = get_angle_from_complimentary_filter(AccX_PU, AccZ_PU, GyroY_PU, dt)
+# alpha = get_alpha_from_acc(AccX_PU, AccY_PU, AccZ_PU)
 
 # plt.plot(time, AccX_PU)
 # plt.plot(time, AccY_PU)
@@ -141,7 +148,7 @@ def get_new_sensor_readings(start, end):
     return z_k, R_k
 
 def get_kalman_gain(P_k, H_k, R_k):
-    return np.dot(P_k, np.dot(H_k.T, np.linalg.inv(np.dot(H_k, np.dot(P_k, H_k)) + R_k)))
+    return np.dot(P_k, np.dot(H_k.T, np.linalg.inv(np.dot(H_k, np.dot(P_k, H_k.T)) + R_k)))
 
 def get_update(x_k, K, z_k, H_k, P_k):
     x_k = x_k + np.dot(K, (z_k - np.dot(H_k, x_k)))
@@ -159,6 +166,8 @@ for i in range(window + 1, len(time)):
     # Step 1: Prediction step
     # Calculate prediction
     x_k, P_k = get_prediction(F_k, x_k, B_k, u_k, P_k, Q_k)
+    alpha_KF.append(x_k[0])
+    alpha_d_KF.append(x_k[1])
     
     # Step 2: Update step
     # Get new sensor readings
@@ -168,18 +177,19 @@ for i in range(window + 1, len(time)):
     # Calculate update
     x_k, P_k = get_update(x_k, K, z_k, H_k, P_k)
     # Store updated state
-    alpha_KF.append(x_k[0])
-    alpha_d_KF.append(x_k[1])
+    # alpha_KF.append(x_k[0])
+    # alpha_d_KF.append(x_k[1])
 
 alpha_KF = np.array(alpha_KF)
 alpha_d_KF = np.array(alpha_d_KF)
 # Plot
-# plt.plot(time, alpha)
-# plt.plot(time, AngY_PU)
-# plt.plot(time[window:], alpha_KF)
-# plt.show()
-
-#plt.plot(time, alpha)
-plt.plot(time, GyroY_PU)
-plt.plot(time[window:], alpha_d_KF)
+plt.plot(time, alpha)
+plt.plot(time, alpha_CF*15)
+plt.plot(time, AngY_PU)
+plt.plot(time[window:], alpha_KF)
 plt.show()
+
+# plt.plot(time, alpha)
+# plt.plot(time, GyroY_PU)
+# plt.plot(time[window:], alpha_d_KF)
+# plt.show()
