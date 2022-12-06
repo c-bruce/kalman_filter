@@ -95,8 +95,8 @@ def get_prediction(F_k, x_k, B_k, u_k, P_k, Q_k):
     return x_k, P_k
 
 def get_new_sensor_readings(start, end):
-    z_k = np.array([np.mean(alpha[start:end]), np.mean(GyroY_PU[start:end])])
-    #z_k = np.array([alpha[end], GyroY_PU[end]])
+    #z_k = np.array([np.mean(alpha[start:end]), np.mean(GyroY_PU[start:end])])
+    z_k = np.array([alpha[end], GyroY_PU[end]])
     R_k = np.array([[variance(alpha[start:end]), covariance(alpha[start:end], GyroY_PU[start:end])],
                     [covariance(GyroY_PU[start:end], alpha[start:end]), variance(GyroY_PU[start:end])]])
     return z_k, R_k
@@ -116,8 +116,8 @@ def get_covariance_update(I, K, H_k, P_k, R_k):
 window = 4 # Size of window for getting sensor readings over
 start = 0
 x_k, P_k = get_new_sensor_readings(start, start + window)
-R_k = np.array([[1, 0],
-                [0, 1]])
+# P_k = np.array([[1, 0],
+#                 [0, 1]])
 alpha_KF = [x_k[0]]
 alpha_d_KF = [x_k[1]]
 # Start of loop
@@ -128,10 +128,14 @@ for i in range(start + window + 1, len(time)):
     # Step 2: Update step
     # Get new measurement data
     z_k, R_k = get_new_sensor_readings(i - window, i)
+    # R_k = np.array([[1, 0],
+    #                 [0, 1]])
     # Compute Kalman gain
     # K = get_kalman_gain(P_k, H_k, R_k)
     K = np.array([[0.05, 0],
                   [0, 0.5]])
+    # print(K)
+    
     # Update state and uncertainty
     x_k = get_state_update(x_k, K, z_k, H_k, P_k)
     P_k = get_covariance_update(I, K, H_k, P_k, R_k)
