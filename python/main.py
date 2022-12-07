@@ -38,7 +38,7 @@ def get_raw_in_physical_units(df, acc_scale_factor, gyro_scale_factor):
 def vectorized_integration(input_vector, dt):
     output_vector = [0]
     for i in range(len(input_vector)):
-        output_vector.append(output_vector[i] + input_vector[i] * dt)
+        output_vector.append(output_vector[i] + (input_vector[i] * dt))
     return np.array(output_vector[1:])
 
 def get_angle_from_acc(a, b):
@@ -89,9 +89,9 @@ H_k = np.array([[1, 0],
 I = np.array([[1, 0],
               [0, 1]]) # Identity matrix
 
-def get_prediction(F_k, x_k, B_k, u_k, P_k, Q_k):
+def get_prediction(F_k, x_k, B_k, u_k, P_k, Q_k, fade=1):
     x_k = np.dot(F_k, x_k) + np.dot(B_k, u_k)
-    P_k = np.dot(F_k, np.dot(P_k, F_k.T)) + Q_k
+    P_k = (fade**2)**0.5 * np.dot(F_k, np.dot(P_k, F_k.T)) + Q_k
     return x_k, P_k
 
 def get_new_sensor_readings(start, end):
@@ -113,8 +113,9 @@ def get_covariance_update(I, K, H_k, P_k, R_k):
 
 # Step 0: Get initial state and covariance matrix
 # Use first 0.04 seconds of raw alpha and GyroY_PU data
-window = 4 # Size of window for getting sensor readings over
+window = 20 # Size of window for getting sensor readings over
 start = 0
+fade = 1.2
 x_k, P_k = get_new_sensor_readings(start, start + window)
 # P_k = np.array([[1, 0],
 #                 [0, 1]])
@@ -123,7 +124,7 @@ alpha_d_KF = [x_k[1]]
 # Start of loop
 for i in range(start + window + 1, len(time)):
     # Step 1: Prediction step
-    x_k, P_k = get_prediction(F_k, x_k, B_k, u_k, P_k, Q_k)
+    x_k, P_k = get_prediction(F_k, x_k, B_k, u_k, P_k, Q_k, fade)
 
     # Step 2: Update step
     # Get new measurement data
@@ -131,9 +132,9 @@ for i in range(start + window + 1, len(time)):
     # R_k = np.array([[1, 0],
     #                 [0, 1]])
     # Compute Kalman gain
-    # K = get_kalman_gain(P_k, H_k, R_k)
-    K = np.array([[0.05, 0],
-                  [0, 0.5]])
+    K = get_kalman_gain(P_k, H_k, R_k)
+    # K = np.array([[0.05, 0],
+    #               [0, 0.5]])
     # print(K)
     
     # Update state and uncertainty

@@ -81,8 +81,9 @@ class MainWidget(QSplitter):
     @mlab.animate(delay=100)
     def anim(self):
         while True:
-            ang = np.random.randint(0, 90)
-            self.rotate_reference_frame([np.radians(ang), 0, 0], self.reference_frames['moving'], 'moving')
+            attitude = np.radians(np.loadtxt('attitude.csv', delimiter=','))
+            #ang = np.random.randint(0, 90)
+            self.rotate_reference_frame(attitude, self.reference_frames['moving'], 'moving')
             yield
     
     def plot_reference_frames(self):
