@@ -4,6 +4,7 @@
 #include <RF24.h>
 #include <Wire.h>
 #include <Servo.h>
+#include <BasicLinearAlgebra.h>
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Variables
@@ -15,6 +16,8 @@ bool gyro_calibrated = false;
 long loop_timer;
 
 // Define MPU Variables
+const float acc_scale_factor = 4096; // From MPU6050 datasheet [g]
+const float gyro_scale_factor = 65.5; // From MPU6050 datasheet [deg/s]
 const int mpu_address = 0x68;
 int gyro_cal_int; // Gyroscope calibration int counter
 float gyro_x_offset, gyro_y_offset, gyro_z_offset; // Gyroscope roll, pitch, yaw calibration offsets
@@ -25,6 +28,105 @@ float roll_angle_acc, pitch_angle_acc;
 // float pitch_angle_acc_trim = 1.8;
 float roll_angle, pitch_angle, yaw_angle;
 // float roll_level_adjust, pitch_level_adjust;
+
+// Kalman Filter Variables
+// Constant ints and floats
+const int window = 10;
+const float dt = 0.004;
+const float fade = 1.2;
+// Varying matricies
+BLA::Matrix<2> x_k = {0.0, 0.0}; // State [pitch, pitch_rate]
+BLA::Matrix<2, 2> P_k = {0.0, 0.0, 0.0, 0.0}; // Covariance matrix
+BLA::Matrix<2> z_k = {0.0, 0.0}; // Measurement state [pitch, pitch_rate]
+BLA::Matrix<2, 2> R_k = {0.0, 0.0, 0.0, 0.0}; // Measurement covariance matrix
+BLA::Matrix<2, 2> K = {0.0, 0.0, 0.0, 0.0}; // Kalman gain matrix
+BLA::Matrix<2, 2> inv = {0.0, 0.0, 0.0, 0.0}; // Inverse matrix required to calculate K
+// Constant matricies
+const BLA::Matrix<2, 2> F_k = {1.0, dt, 0.0, 1.0}; // Kalman gain
+const BLA::Matrix<2, 2> B_k = {0.0, 0.0, 0.0, 0.0}; // Control matrix
+const BLA::Matrix<2> u_k = {0.0, 0.0}; // Control vector
+const BLA::Matrix<2, 2> Q_k = {0.0, 0.0, 0.0, 0.0}; // Untracked noise matrix
+const BLA::Matrix<2, 2> H_k = {1.0, 0.0, 0.0, 1.0}; // Transformation matrix
+const BLA::Matrix<2, 2> I = {1.0, 0.0, 0.0, 1.0}; // Identity matrix
+// Arrays to store rolling data (https://forum.arduino.cc/t/how-to-store-values-in-a-list-or-array/606820/2)
+float z_pitch_array[window];
+float z_pitch_rate_array[window];
+byte index = 0;
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+// MPU
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void setupMPUregisters()
+{
+  // Activate the MPU-6050
+  Wire.beginTransmission(mpu_address); // Start communicating with the MPU-6050
+  Wire.write(0x6B); // Send the requested starting register
+  Wire.write(0x00); // Set the requested starting register
+  Wire.endTransmission(); // End the transmission
+  //Configure the accelerometer (+/- 8g)
+  Wire.beginTransmission(mpu_address); // Start communicating with the MPU-6050
+  Wire.write(0x1C); // Send the requested starting register
+  Wire.write(0x10); // Set the requested starting register
+  Wire.endTransmission(); // End the transmission
+  // Configure the gyroscope (500 deg/s full scale)
+  Wire.beginTransmission(mpu_address); // Start communicating with the MPU-6050
+  Wire.write(0x1B); // Send the requested starting register
+  Wire.write(0x08); // Set the requested starting register
+  Wire.endTransmission(); // End the transmission
+}
+
+void readMPUdata()
+{
+  // Read raw gyroscope and accelerometer data
+  Wire.beginTransmission(mpu_address); // Start communicating with the MPU-6050
+  Wire.write(0x3B); // Send the requested starting register
+  Wire.endTransmission(); // End the transmission
+  Wire.requestFrom(mpu_address, 14, true); // Request 14 bytes from the MPU-6050
+  AccX = -(Wire.read() << 8 | Wire.read());
+  AccY = -(Wire.read() << 8 | Wire.read());
+  AccZ = (Wire.read() << 8 | Wire.read());
+  temperature = Wire.read() << 8 | Wire.read();
+  GyroX = -(Wire.read() << 8 | Wire.read());
+  GyroY = -(Wire.read() << 8 | Wire.read());
+  GyroZ = (Wire.read() << 8 | Wire.read());
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Kalman Filter
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void get_pitch() 
+{
+  z_k.storage(0, 0) = 5.0;
+}
+
+void get_new_sensor_readings()
+{
+  // Step 1: Get raw mpu data
+  readMPUdata();
+  // Step 2: Calculate new z_k
+  // Step 3: Iterate index
+  // Step 4: Push new z_k into storage arrays at index
+  // Step 5: Calculate R_k
+}
+
+void get_prediction()
+{
+  x_k = (F_k * x_k) + (B_k * u_k);
+  P_k = ((F_k * (P_k * ~F_k)) * pow((pow(fade, 2)), 0.5)) + Q_k;
+}
+
+void get_kalman_gain()
+{
+  inv = BLA::Inverse((H_k * (P_k * ~H_k)) + R_k);
+  K = (P_k * (~H_k * inv));
+}
+
+void get_update()
+{
+  x_k = x_k + (K * (z_k - (H_k * x_k)));
+  P_k = ((I - (K * H_k)) * (P_k * ~(I - (K * H_k)))) + (K * (R_k * ~K));
+}
 
 // // Define Quadcopter Inputs
 // int throttle, throttle_mod;
@@ -141,40 +243,40 @@ float roll_angle, pitch_angle, yaw_angle;
 //   }
 // }
 
-void setupMPUregisters()
-{
-  // Activate the MPU-6050
-  Wire.beginTransmission(mpu_address); // Start communicating with the MPU-6050
-  Wire.write(0x6B); // Send the requested starting register
-  Wire.write(0x00); // Set the requested starting register
-  Wire.endTransmission(); // End the transmission
-  //Configure the accelerometer (+/- 8g)
-  Wire.beginTransmission(mpu_address); // Start communicating with the MPU-6050
-  Wire.write(0x1C); // Send the requested starting register
-  Wire.write(0x10); // Set the requested starting register
-  Wire.endTransmission(); // End the transmission
-  // Configure the gyroscope (500 deg/s full scale)
-  Wire.beginTransmission(mpu_address); // Start communicating with the MPU-6050
-  Wire.write(0x1B); // Send the requested starting register
-  Wire.write(0x08); // Set the requested starting register
-  Wire.endTransmission(); // End the transmission
-}
+// void setupMPUregisters()
+// {
+//   // Activate the MPU-6050
+//   Wire.beginTransmission(mpu_address); // Start communicating with the MPU-6050
+//   Wire.write(0x6B); // Send the requested starting register
+//   Wire.write(0x00); // Set the requested starting register
+//   Wire.endTransmission(); // End the transmission
+//   //Configure the accelerometer (+/- 8g)
+//   Wire.beginTransmission(mpu_address); // Start communicating with the MPU-6050
+//   Wire.write(0x1C); // Send the requested starting register
+//   Wire.write(0x10); // Set the requested starting register
+//   Wire.endTransmission(); // End the transmission
+//   // Configure the gyroscope (500 deg/s full scale)
+//   Wire.beginTransmission(mpu_address); // Start communicating with the MPU-6050
+//   Wire.write(0x1B); // Send the requested starting register
+//   Wire.write(0x08); // Set the requested starting register
+//   Wire.endTransmission(); // End the transmission
+// }
 
-void readMPUdata()
-{
-  // Read raw gyroscope and accelerometer data
-  Wire.beginTransmission(mpu_address); // Start communicating with the MPU-6050
-  Wire.write(0x3B); // Send the requested starting register
-  Wire.endTransmission(); // End the transmission
-  Wire.requestFrom(mpu_address, 14, true); // Request 14 bytes from the MPU-6050
-  AccX = -(Wire.read() << 8 | Wire.read());
-  AccY = -(Wire.read() << 8 | Wire.read());
-  AccZ = (Wire.read() << 8 | Wire.read());
-  temperature = Wire.read() << 8 | Wire.read();
-  GyroX = -(Wire.read() << 8 | Wire.read());
-  GyroY = -(Wire.read() << 8 | Wire.read());
-  GyroZ = (Wire.read() << 8 | Wire.read());
-}
+// void readMPUdata()
+// {
+//   // Read raw gyroscope and accelerometer data
+//   Wire.beginTransmission(mpu_address); // Start communicating with the MPU-6050
+//   Wire.write(0x3B); // Send the requested starting register
+//   Wire.endTransmission(); // End the transmission
+//   Wire.requestFrom(mpu_address, 14, true); // Request 14 bytes from the MPU-6050
+//   AccX = -(Wire.read() << 8 | Wire.read());
+//   AccY = -(Wire.read() << 8 | Wire.read());
+//   AccZ = (Wire.read() << 8 | Wire.read());
+//   temperature = Wire.read() << 8 | Wire.read();
+//   GyroX = -(Wire.read() << 8 | Wire.read());
+//   GyroY = -(Wire.read() << 8 | Wire.read());
+//   GyroZ = (Wire.read() << 8 | Wire.read());
+// }
 
 //void getRollPitch(float roll_angle_acc_trim, float pitch_angle_acc_trim)
 // void getRollPitch()
@@ -342,18 +444,25 @@ void setup()
 
 void loop()
 {
-  readMPUdata();
-  Serial.print(AccX);
-  Serial.print(",");
-  Serial.print(AccY);
-  Serial.print(",");
-  Serial.print(AccZ);
-  Serial.print(",");
-  Serial.print(GyroX);
-  Serial.print(",");
-  Serial.print(GyroY);
-  Serial.print(",");
-  Serial.println(GyroZ);
+  // readMPUdata();
+  // Serial.print(AccX);
+  // Serial.print(",");
+  // Serial.print(AccY);
+  // Serial.print(",");
+  // Serial.print(AccZ);
+  // Serial.print(",");
+  // Serial.print(GyroX);
+  // Serial.print(",");
+  // Serial.print(GyroY);
+  // Serial.print(",");
+  // Serial.println(GyroZ);
+  
+  Serial << z_k;
+  Serial.println(';');
+  get_pitch();
+  Serial << z_k;
+  Serial.println(';');
+
 
   // loop_timer = micros();
   // // Step 1: Get MPU data

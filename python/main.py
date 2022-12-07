@@ -105,7 +105,7 @@ def get_kalman_gain(P_k, H_k, R_k):
     K = np.dot(P_k, np.dot(H_k.T, np.linalg.inv(np.dot(H_k, np.dot(P_k, H_k.T)) + R_k)))
     return K
 
-def get_state_update(x_k, K, z_k, H_k, P_k):
+def get_state_update(x_k, K, z_k, H_k):
     return x_k + np.dot(K, (z_k - np.dot(H_k, x_k)))
 
 def get_covariance_update(I, K, H_k, P_k, R_k):
@@ -138,7 +138,7 @@ for i in range(start + window + 1, len(time)):
     # print(K)
     
     # Update state and uncertainty
-    x_k = get_state_update(x_k, K, z_k, H_k, P_k)
+    x_k = get_state_update(x_k, K, z_k, H_k)
     P_k = get_covariance_update(I, K, H_k, P_k, R_k)
     
     # Store updated state
