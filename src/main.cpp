@@ -18,6 +18,7 @@ long loop_timer;
 // Define MPU Variables
 const float acc_scale_factor = 4096; // From MPU6050 datasheet [g]
 const float gyro_scale_factor = 65.5; // From MPU6050 datasheet [deg/s]
+const float rad2deg = 57.2958;
 const int mpu_address = 0x68;
 int gyro_cal_int; // Gyroscope calibration int counter
 float gyro_x_offset, gyro_y_offset, gyro_z_offset; // Gyroscope roll, pitch, yaw calibration offsets
@@ -97,7 +98,12 @@ void readMPUdata()
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 void get_pitch() 
 {
-  z_k.storage(0, 0) = 5.0;
+  z_k.storage(0, 0) = (atan2(AccZ, AccX) * rad2deg) + 90;
+}
+
+void get_pitch_rate()
+{
+  z_k.storage(0, 1) = GyroX / gyro_scale_factor;
 }
 
 void get_new_sensor_readings()
@@ -105,6 +111,8 @@ void get_new_sensor_readings()
   // Step 1: Get raw mpu data
   readMPUdata();
   // Step 2: Calculate new z_k
+  get_pitch();
+  get_pitch_rate();
   // Step 3: Iterate index
   // Step 4: Push new z_k into storage arrays at index
   // Step 5: Calculate R_k
@@ -459,7 +467,7 @@ void loop()
   
   Serial << z_k;
   Serial.println(';');
-  get_pitch();
+  get_new_sensor_readings();
   Serial << z_k;
   Serial.println(';');
 
