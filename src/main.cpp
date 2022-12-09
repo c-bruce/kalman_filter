@@ -106,16 +106,34 @@ void get_pitch_rate()
   z_k.storage(0, 1) = GyroX / gyro_scale_factor;
 }
 
+void get_covariance()
+{
+  
+}
+
 void get_new_sensor_readings()
 {
   // Step 1: Get raw mpu data
   readMPUdata();
+
   // Step 2: Calculate new z_k
   get_pitch();
   get_pitch_rate();
-  // Step 3: Iterate index
-  // Step 4: Push new z_k into storage arrays at index
+
+  // Step 3: Push new z_k into storage arrays at index
+  z_pitch_array[index] = z_k.storage(0, 0);
+  z_pitch_rate_array[index] = z_k.storage(0, 1);
+
+  // Step 4: Iterate index
+  if (index < window) {
+    index++;
+  }
+  else if (index == window) {
+    index = 0;
+  }
+  
   // Step 5: Calculate R_k
+
 }
 
 void get_prediction()
@@ -465,10 +483,16 @@ void loop()
   // Serial.print(",");
   // Serial.println(GyroZ);
   
-  Serial << z_k;
-  Serial.println(';');
+  // Serial << z_k;
+  // Serial.println(';');
   get_new_sensor_readings();
-  Serial << z_k;
+  // Serial << z_k;
+  // Serial.println(';');
+  for(int i = 0; i < window; i++)
+  {
+    Serial.print(z_pitch_array[i]);
+    Serial.print(',');
+  }
   Serial.println(';');
 
 
