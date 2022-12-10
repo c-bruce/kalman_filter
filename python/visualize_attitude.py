@@ -82,7 +82,10 @@ class MainWidget(QSplitter):
     def anim(self):
         while True:
             attitude = np.radians(np.loadtxt('attitude.csv', delimiter=','))
-            #ang = np.random.randint(0, 90)
+            # with open('output.txt', 'r') as f:
+            #     lines = f.read().splitlines()
+            #     last_line = lines[-1]
+            #     print last_line
             self.rotate_reference_frame(attitude, self.reference_frames['moving'], 'moving')
             yield
     
