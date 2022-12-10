@@ -18,6 +18,8 @@ long loop_timer;
 // Define MPU Variables
 const float acc_scale_factor = 4096; // From MPU6050 datasheet [g]
 const float gyro_scale_factor = 65.5; // From MPU6050 datasheet [deg/s]
+const float pitch_offset = 2.83; // [deg]
+const float pitch_rate_offset = 0.57; // [deg/s]
 const float rad2deg = 57.2958;
 const int mpu_address = 0x68;
 int gyro_cal_int; // Gyroscope calibration int counter
@@ -37,7 +39,7 @@ const float dt = 0.004;
 const float fade = 1.2;
 // Varying matricies
 BLA::Matrix<2> x_k = {0.0, 0.0}; // State [pitch, pitch_rate]
-BLA::Matrix<2, 2> P_k = {0.0, 0.0, 0.0, 0.0}; // Covariance matrix
+BLA::Matrix<2, 2> P_k = {1.0, 0.0, 0.0, 1.0}; // Covariance matrix
 BLA::Matrix<2> z_k = {0.0, 0.0}; // Measurement state [pitch, pitch_rate]
 BLA::Matrix<2, 2> R_k = {0.0, 0.0, 0.0, 0.0}; // Measurement covariance matrix
 BLA::Matrix<2, 2> K = {0.0, 0.0, 0.0, 0.0}; // Kalman gain matrix
@@ -96,19 +98,51 @@ void readMPUdata()
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Kalman Filter
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-void get_pitch() 
+// void get_pitch() 
+// {
+//   z_k.storage(0, 0) = (atan2(AccZ, AccX) * rad2deg) + 90;
+// }
+
+// void get_pitch_rate()
+// {
+//   z_k.storage(0, 1) = GyroX / gyro_scale_factor;
+// }
+
+float get_covariance(const float * a, const float * b, const int n)
 {
-  z_k.storage(0, 0) = (atan2(AccZ, AccX) * rad2deg) + 90;
+  // Calculate averages
+  float average_a = 0.0;
+  float average_b = 0.0;
+  for (int i = 0; i < n; i++)
+  {
+    average_a += a[i];
+    average_b += b[i];
+  }
+  average_a /= n;
+  average_b /= n;
+  // Calculate covariance
+  float covariance = 0.0;
+  for (int i = 0; i < n; i++)
+  {
+    covariance += (a[i] - average_a) * (b[i] - average_b);
+  }
+  covariance /= n;
+
+  return covariance;
 }
 
-void get_pitch_rate()
+void get_z_k()
 {
-  z_k.storage(0, 1) = GyroX / gyro_scale_factor;
+  z_k.storage(0, 0) = ((atan2(AccZ, AccX) * rad2deg) + 90) - pitch_offset;
+  z_k.storage(0, 1) = (GyroX / gyro_scale_factor) - pitch_rate_offset;
 }
 
-void get_covariance()
+void get_R_k()
 {
-  
+  R_k.storage(0, 0) = get_covariance(z_pitch_array, z_pitch_array, window);
+  R_k.storage(0, 1) = get_covariance(z_pitch_array, z_pitch_rate_array, window);
+  R_k.storage(1, 0) = get_covariance(z_pitch_rate_array, z_pitch_array, window); // Could be optimized
+  R_k.storage(1, 1) = get_covariance(z_pitch_rate_array, z_pitch_rate_array, window);
 }
 
 void get_new_sensor_readings()
@@ -117,8 +151,7 @@ void get_new_sensor_readings()
   readMPUdata();
 
   // Step 2: Calculate new z_k
-  get_pitch();
-  get_pitch_rate();
+  get_z_k();
 
   // Step 3: Push new z_k into storage arrays at index
   z_pitch_array[index] = z_k.storage(0, 0);
@@ -133,25 +166,25 @@ void get_new_sensor_readings()
   }
   
   // Step 5: Calculate R_k
-
+  get_R_k();
 }
 
 void get_prediction()
 {
   x_k = (F_k * x_k) + (B_k * u_k);
-  P_k = ((F_k * (P_k * ~F_k)) * pow((pow(fade, 2)), 0.5)) + Q_k;
+  P_k = ((F_k * (P_k * (~F_k))) * pow((pow(fade, 2)), 0.5)) + Q_k;
 }
 
 void get_kalman_gain()
 {
-  inv = BLA::Inverse((H_k * (P_k * ~H_k)) + R_k);
-  K = (P_k * (~H_k * inv));
+  inv = BLA::Inverse((H_k * (P_k * (~H_k))) + R_k);
+  K = (P_k * ((~H_k) * inv));
 }
 
 void get_update()
 {
   x_k = x_k + (K * (z_k - (H_k * x_k)));
-  P_k = ((I - (K * H_k)) * (P_k * ~(I - (K * H_k)))) + (K * (R_k * ~K));
+  P_k = ((I - (K * H_k)) * (P_k * (~(I - (K * H_k))))) + (K * (R_k * (~K)));
 }
 
 // // Define Quadcopter Inputs
@@ -453,23 +486,49 @@ void setup()
   // BM2.attach(bm2_PIN, 1000, 2000);
   // BM3.attach(bm3_PIN, 1000, 2000);
   // BM4.attach(bm4_PIN, 1000, 2000);
-  Serial.print("AccX");
+  // Serial.print("AccX");
+  // Serial.print(",");
+  // Serial.print("AccY");
+  // Serial.print(",");
+  // Serial.print("AccZ");
+  // Serial.print(",");
+  // Serial.print("GyroX");
+  // Serial.print(",");
+  // Serial.print("GyroY");
+  // Serial.print(",");
+  // Serial.println("GyroZ");
+  Serial.print("z_k_0");
   Serial.print(",");
-  Serial.print("AccY");
+  Serial.print("z_k_1");
   Serial.print(",");
-  Serial.print("AccZ");
+  Serial.print("x_k_0");
   Serial.print(",");
-  Serial.print("GyroX");
-  Serial.print(",");
-  Serial.print("GyroY");
-  Serial.print(",");
-  Serial.println("GyroZ");
+  Serial.println("x_k_1");
 
   loop_timer = micros(); // Reset the loop timer
 }
 
 void loop()
 {
+  // Prediction step
+  get_prediction();
+  // Update step
+  get_new_sensor_readings();
+  get_kalman_gain();
+  get_update();
+
+  Serial.print(z_k.storage(0, 0));
+  Serial.print(",");
+  Serial.print(z_k.storage(0, 1));
+  Serial.print(",");
+  Serial.print(x_k.storage(0, 0));
+  Serial.print(",");
+  Serial.println(x_k.storage(0, 1));
+  // Serial << z_k;
+  // Serial.print(',');
+  // Serial << x_k;
+  // Serial.println();
+
   // readMPUdata();
   // Serial.print(AccX);
   // Serial.print(",");
@@ -485,15 +544,15 @@ void loop()
   
   // Serial << z_k;
   // Serial.println(';');
-  get_new_sensor_readings();
+  // get_new_sensor_readings();
   // Serial << z_k;
   // Serial.println(';');
-  for(int i = 0; i < window; i++)
-  {
-    Serial.print(z_pitch_array[i]);
-    Serial.print(',');
-  }
-  Serial.println(';');
+  // for(int i = 0; i < window; i++)
+  // {
+  //   Serial.print(z_pitch_array[i]);
+  //   Serial.print(',');
+  // }
+  // Serial.println(';');
 
 
   // loop_timer = micros();
