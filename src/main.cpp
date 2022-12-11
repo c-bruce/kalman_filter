@@ -587,10 +587,12 @@ void loop()
   //get_kalman_gain();
   get_update();
 
-  Serial.print(x_k.storage(0, 0));
+  
+  Serial.print(x_k.storage(0, 1)); // phi
   Serial.print(",");
-  Serial.print(x_k.storage(0, 1));
-  Serial.println(",0");
+  Serial.print(x_k.storage(0, 0)); // theta
+  Serial.print(",");
+  Serial.println("0"); // psi
 
   // Serial.print(z_k.storage(0, 0));
   // Serial.print(",");

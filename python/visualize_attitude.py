@@ -17,7 +17,7 @@ from traits.api import HasTraits, Instance
 from traitsui.api import View, Item
 
 import numpy as np
-import time
+import os
 
 from referenceframe import ReferenceFrame
 from helpermath import euler2quaternion
@@ -81,13 +81,21 @@ class MainWidget(QSplitter):
     @mlab.animate(delay=100)
     def anim(self):
         while True:
-            attitude = np.radians(np.loadtxt('attitude.csv', delimiter=','))
-            # with open('output.txt', 'r') as f:
-            #     lines = f.read().splitlines()
-            #     last_line = lines[-1]
-            #     print last_line
+            attitude = np.radians(self.read_serial_monitor_log())
             self.rotate_reference_frame(attitude, self.reference_frames['moving'], 'moving')
             yield
+    
+    def read_serial_monitor_log(self):
+        with open('attitude.csv', 'rb') as f:
+            try:  # catch OSError in case of a one line file 
+                f.seek(-2, os.SEEK_END)
+                while f.read(1) != b'\n':
+                    f.seek(-2, os.SEEK_CUR)
+            except OSError:
+                f.seek(0)
+            last_line = f.readline().decode('ascii')
+            f.close()
+        return np.asarray(last_line.rstrip().split(','), dtype=float)
     
     def plot_reference_frames(self):
         for key in self.reference_frames:
