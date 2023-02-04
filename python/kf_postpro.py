@@ -5,7 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # GET DATA
-df = pd.read_csv('KF_003_mpu6050.csv')
+df = pd.read_csv('KF_004_mpu6050.csv')
 
 # CONSTANTS
 dt = 0.004 # [s]
@@ -40,6 +40,8 @@ ax1[1].plot(time, z_k_2)
 ax1[1].plot(time, x_k_2)
 ax1[0].grid()
 ax1[1].grid()
+ax1[0].set_ylabel("Pitch [deg]")
+ax1[1].set_ylabel("Pitch rate [deg/s]")
 
 fig2, ax2 = plt.subplots(2)
 ax2[0].plot(time, z_k_1)
@@ -49,4 +51,6 @@ ax2[1].plot(time, z_k_3)
 ax2[1].plot(time, x_k_3)
 ax2[0].grid()
 ax2[1].grid()
+ax1[0].set_ylabel("Roll [deg]")
+ax1[1].set_ylabel("Roll rate [deg/s]")
 plt.show()
