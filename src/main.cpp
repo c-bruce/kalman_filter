@@ -36,7 +36,7 @@ float roll_angle, pitch_angle, yaw_angle;
 // Constant ints and floats
 const int window = 10;
 const float dt = 0.004;
-const float fade = 1.0;
+const float fade = 1.2;
 
 // Varying matricies
 // BLA::Matrix<4, 1, BLA::Array<4,1,double>> x_k = {0.0, 0.0, 0.0, 0.0}; // State [pitch, roll, pitch_rate, roll_rate]
@@ -46,22 +46,22 @@ BLA::Matrix<4, 4> P_k = {1.0, 0.0, 0.0, 0.0,
                          0.0, 0.0, 1.0, 0.0,
                          0.0, 0.0, 0.0, 1.0}; // Covariance matrix
 BLA::Matrix<4, 1> z_k = {0.0, 0.0, 0.0, 0.0}; // Measurement state [pitch, roll, pitch_rate, roll_rate]
-BLA::Matrix<4, 4> R_k = {0.0, 0.0, 0.0, 0.0, 
-                         0.0, 0.0, 0.0, 0.0,
-                         0.0, 0.0, 0.0, 0.0,
-                         0.0, 0.0, 0.0, 0.0}; // Measurement covariance matrix
-// BLA::Matrix<4, 4, BLA::Array<4,4,double>> K = {0.0, 0.0, 0.0, 0.0, 
-//                                                0.0, 0.0, 0.0, 0.0,
-//                                                0.0, 0.0, 0.0, 0.0,
-//                                                0.0, 0.0, 0.0, 0.0}; // Kalman gain matrix
-BLA::Matrix<4, 4> K = {0.4, 0.0, 0.0, 0.0, 
-                       0.0, 0.4, 0.0, 0.0,
-                       0.0, 0.0, 0.5, 0.0,
-                       0.0, 0.0, 0.0, 0.5}; // Kalman gain matrix
+BLA::Matrix<4, 4> R_k = {10.0, 0.0, 0.0, 0.0, 
+                         0.0, 10.0, 0.0, 0.0,
+                         0.0, 0.0, 1.0, 0.0,
+                         0.0, 0.0, 0.0, 1.0}; // Measurement covariance matrix
+BLA::Matrix<4, 4, BLA::Array<4,4,double>> K = {0.0, 0.0, 0.0, 0.0, 
+                                               0.0, 0.0, 0.0, 0.0,
+                                               0.0, 0.0, 0.0, 0.0,
+                                               0.0, 0.0, 0.0, 0.0}; // Kalman gain matrix
+// BLA::Matrix<4, 4> K = {0.4, 0.0, 0.0, 0.0, 
+//                        0.0, 0.4, 0.0, 0.0,
+//                        0.0, 0.0, 0.5, 0.0,
+//                        0.0, 0.0, 0.0, 0.5}; // Kalman gain matrix
 BLA::Matrix<4, 4> inv = {0.0, 0.0, 0.0, 0.0, 
                          0.0, 0.0, 0.0, 0.0,
                          0.0, 0.0, 0.0, 0.0,
-                         0.0, 0.0, 0.0, 0.0}; // Inverse matrix required to calculate K\
+                         0.0, 0.0, 0.0, 0.0}; // Inverse matrix required to calculate K
 
 // Constant matricies
 const BLA::Matrix<4, 4> F_k = {1.0, 0.0, dt, 0.0, 
@@ -73,10 +73,14 @@ const BLA::Matrix<4, 4> B_k = {0.0, 0.0, 0.0, 0.0,
                                0.0, 0.0, 0.0, 0.0,
                                0.0, 0.0, 0.0, 0.0}; // Control matrix
 const BLA::Matrix<4, 1> u_k = {0.0, 0.0, 0.0, 0.0}; // Control vector
-const BLA::Matrix<4, 4> Q_k = {0.0, 0.0, 0.0, 0.0, 
-                               0.0, 0.0, 0.0, 0.0,
-                               0.0, 0.0, 0.0, 0.0,
-                               0.0, 0.0, 0.0, 0.0};  // Untracked noise matrix
+const BLA::Matrix<4, 4> Q_k = {0.0001, 0.0, 0.0, 0.0, 
+                               0.0, 0.0001, 0.0, 0.0,
+                               0.0, 0.0, 0.0001, 0.0,
+                               0.0, 0.0, 0.0, 0.0001};  // Untracked noise matrix
+// const BLA::Matrix<4, 4> Q_k = {3.2e-10, 0.0, 1.6e-7, 0.0, 
+//                                0.0, 3.2e-10, 0.0, 1.6e-7,
+//                                1.6e-7, 0.0, 8.0e-5, 0.0,
+//                                0.0, 1.6e-7, 0.0, 8.0e-5};  // Untracked noise matrix
 const BLA::Matrix<4, 4> H_k = {1.0, 0.0, 0.0, 0.0, 
                                0.0, 1.0, 0.0, 0.0,
                                0.0, 0.0, 1.0, 0.0,
@@ -228,13 +232,14 @@ void get_new_sensor_readings()
   }
   
   // Step 5: Calculate R_k
-  get_R_k();
+  // get_R_k();
 }
 
 void get_prediction()
 {
   x_k = (F_k * x_k) + (B_k * u_k);
-  P_k = ((F_k * (P_k * (~F_k))) * pow((pow(fade, 2)), 0.5)) + Q_k;
+  P_k = ((F_k * (P_k * (~F_k))) * pow((pow(fade, 2)), 0.5)) + (Q_k * 1000);
+  // P_k = ((F_k * (P_k * (~F_k))) * 1.0) + Q_k;
 }
 
 void get_kalman_gain()
@@ -288,7 +293,7 @@ void loop()
   get_prediction();
   // Update step
   get_new_sensor_readings();
-  //get_kalman_gain();
+  get_kalman_gain();
   get_update();
 
   // Serial.print(x_k.storage(0, 1)); // phi
