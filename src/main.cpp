@@ -36,7 +36,13 @@ float roll_angle, pitch_angle, yaw_angle;
 // Constant ints and floats
 const int window = 10;
 const float dt = 0.004;
-const float fade = 1.2;
+const float fade = 1.0;
+
+// Continuous Adjustment Variables
+int count = 0;
+BLA::Matrix<1, 1> epsilon = {0.0}; // Normalized square of the residual
+float epsilon_max = 5.0;
+float Q_scale_factor = 1000.0;
 
 // Varying matricies
 // BLA::Matrix<4, 1, BLA::Array<4,1,double>> x_k = {0.0, 0.0, 0.0, 0.0}; // State [pitch, roll, pitch_rate, roll_rate]
@@ -46,18 +52,19 @@ BLA::Matrix<4, 4> P_k = {1.0, 0.0, 0.0, 0.0,
                          0.0, 0.0, 1.0, 0.0,
                          0.0, 0.0, 0.0, 1.0}; // Covariance matrix
 BLA::Matrix<4, 1> z_k = {0.0, 0.0, 0.0, 0.0}; // Measurement state [pitch, roll, pitch_rate, roll_rate]
-BLA::Matrix<4, 4> R_k = {10.0, 0.0, 0.0, 0.0, 
-                         0.0, 10.0, 0.0, 0.0,
-                         0.0, 0.0, 1.0, 0.0,
-                         0.0, 0.0, 0.0, 1.0}; // Measurement covariance matrix
-BLA::Matrix<4, 4, BLA::Array<4,4,double>> K = {0.0, 0.0, 0.0, 0.0, 
-                                               0.0, 0.0, 0.0, 0.0,
-                                               0.0, 0.0, 0.0, 0.0,
-                                               0.0, 0.0, 0.0, 0.0}; // Kalman gain matrix
-// BLA::Matrix<4, 4> K = {0.4, 0.0, 0.0, 0.0, 
-//                        0.0, 0.4, 0.0, 0.0,
-//                        0.0, 0.0, 0.5, 0.0,
-//                        0.0, 0.0, 0.0, 0.5}; // Kalman gain matrix
+BLA::Matrix<4, 4> R_k = {5.0, 0.0, 0.0, 0.0, 
+                         0.0, 5.0, 0.0, 0.0,
+                         0.0, 0.0, 5.0, 0.0,
+                         0.0, 0.0, 0.0, 5.0}; // Measurement covariance matrix
+BLA::Matrix<4, 1> y = {0.0, 0.0, 0.0, 0.0}; // Residule [pitch, roll, pitch_rate, roll_rate]
+// BLA::Matrix<4, 4, BLA::Array<4,4,double>> K = {0.0, 0.0, 0.0, 0.0, 
+//                                                0.0, 0.0, 0.0, 0.0,
+//                                                0.0, 0.0, 0.0, 0.0,
+//                                                0.0, 0.0, 0.0, 0.0}; // Kalman gain matrix
+BLA::Matrix<4, 4> K = {0.0, 0.0, 0.0, 0.0, 
+                       0.0, 0.0, 0.0, 0.0,
+                       0.0, 0.0, 0.0, 0.0,
+                       0.0, 0.0, 0.0, 0.0}; // Kalman gain matrix
 BLA::Matrix<4, 4> inv = {0.0, 0.0, 0.0, 0.0, 
                          0.0, 0.0, 0.0, 0.0,
                          0.0, 0.0, 0.0, 0.0,
@@ -73,10 +80,10 @@ const BLA::Matrix<4, 4> B_k = {0.0, 0.0, 0.0, 0.0,
                                0.0, 0.0, 0.0, 0.0,
                                0.0, 0.0, 0.0, 0.0}; // Control matrix
 const BLA::Matrix<4, 1> u_k = {0.0, 0.0, 0.0, 0.0}; // Control vector
-const BLA::Matrix<4, 4> Q_k = {0.0001, 0.0, 0.0, 0.0, 
-                               0.0, 0.0001, 0.0, 0.0,
-                               0.0, 0.0, 0.0001, 0.0,
-                               0.0, 0.0, 0.0, 0.0001};  // Untracked noise matrix
+BLA::Matrix<4, 4> Q_k = {pow(dt, 4) / 4, 0.0, 0.0, 0.0, 
+                         0.0, pow(dt, 4) / 4, 0.0, 0.0,
+                         0.0, 0.0, pow(dt, 2), 0.0,
+                         0.0, 0.0, 0.0, pow(dt, 2)};  // Untracked noise matrix
 // const BLA::Matrix<4, 4> Q_k = {3.2e-10, 0.0, 1.6e-7, 0.0, 
 //                                0.0, 3.2e-10, 0.0, 1.6e-7,
 //                                1.6e-7, 0.0, 8.0e-5, 0.0,
@@ -238,7 +245,7 @@ void get_new_sensor_readings()
 void get_prediction()
 {
   x_k = (F_k * x_k) + (B_k * u_k);
-  P_k = ((F_k * (P_k * (~F_k))) * pow((pow(fade, 2)), 0.5)) + (Q_k * 1000);
+  P_k = ((F_k * (P_k * (~F_k))) * pow((pow(fade, 2)), 0.5)) + Q_k;
   // P_k = ((F_k * (P_k * (~F_k))) * 1.0) + Q_k;
 }
 
@@ -252,6 +259,30 @@ void get_update()
 {
   x_k = x_k + (K * (z_k - (H_k * x_k)));
   P_k = (((I - (K * H_k)) * P_k) * (~(I - (K * H_k)))) + ((K * R_k) * (~K));
+}
+
+void get_residual()
+{
+  y = z_k - x_k;
+}
+
+void get_epsilon()
+{
+  epsilon = (~y * (inv * y)); // Need to fix this
+}
+
+void scale_Q()
+{
+  if (epsilon.storage(0, 0) > epsilon_max)
+  {
+    Q_k *= Q_scale_factor;
+    count += 1;
+  }
+  else if (count > 0)
+  {
+    Q_k /= Q_scale_factor;
+    count -= 1;
+  }
 }
 
 void setup()
@@ -282,7 +313,17 @@ void setup()
   Serial.print(",");
   Serial.print("x_k_2");
   Serial.print(",");
-  Serial.println("x_k_3");
+  Serial.print("x_k_3");
+  Serial.print(",");
+  Serial.print("y_0");
+  Serial.print(",");
+  Serial.print("y_1");
+  Serial.print(",");
+  Serial.print("y_2");
+  Serial.print(",");
+  Serial.print("y_3");
+  Serial.print(",");
+  Serial.println("epsilon");
 
   loop_timer = micros(); // Reset the loop timer
 }
@@ -291,11 +332,18 @@ void loop()
 {
   // Prediction step
   get_prediction();
+
   // Update step
   get_new_sensor_readings();
   get_kalman_gain();
   get_update();
 
+  // Calculate residual
+  get_residual();
+
+  // Continuous adjustment step
+  get_epsilon();
+  scale_Q();
   // Serial.print(x_k.storage(0, 1)); // phi
   // Serial.print(",");
   // Serial.print(x_k.storage(0, 0)); // theta
@@ -315,7 +363,17 @@ void loop()
   Serial.print(",");
   Serial.print(x_k.storage(0, 2));
   Serial.print(",");
-  Serial.println(x_k.storage(0, 3));
+  Serial.print(x_k.storage(0, 3));
+  Serial.print(",");
+  Serial.print(y.storage(0, 0));
+  Serial.print(",");
+  Serial.print(y.storage(0, 1));
+  Serial.print(",");
+  Serial.print(y.storage(0, 2));
+  Serial.print(",");
+  Serial.print(y.storage(0, 3));
+  Serial.print(",");
+  Serial.println(epsilon.storage(0, 0));
   
   // Serial.println(micros() - loop_timer);
   while(micros() - loop_timer < 4000); // Wait until the loop_timer reaches 4000us (250Hz) before starting the next loop
