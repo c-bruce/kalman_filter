@@ -31,8 +31,8 @@ const float fade = 1.0;
 // Continuous Adjustment Variables
 int count = 0;
 BLA::Matrix<1, 1> epsilon = {0.0}; // Normalized square of the residual
-float epsilon_max = 5.0;
-float Q_scale_factor = 1000.0;
+float epsilon_max = 2.0;
+float Q_scale_factor = 100.0;
 
 // Varying matricies
 BLA::Matrix<4, 1> x = {0.0, 0.0, 0.0, 0.0}; // State [roll, pitch, roll_rate, pitch_rate]
@@ -110,20 +110,13 @@ void readMPUdata()
   Wire.write(0x3B); // Send the requested starting register
   Wire.endTransmission(); // End the transmission
   Wire.requestFrom(mpu_address, 14, true); // Request 14 bytes from the MPU-6050
-  AccX = -(Wire.read() << 8 | Wire.read());
-  AccY = -(Wire.read() << 8 | Wire.read());
-  AccZ = (Wire.read() << 8 | Wire.read());
+  AccX = Wire.read() << 8 | Wire.read();
+  AccY = Wire.read() << 8 | Wire.read();
+  AccZ = Wire.read() << 8 | Wire.read();
   temperature = Wire.read() << 8 | Wire.read();
-  GyroX = -(Wire.read() << 8 | Wire.read());
-  GyroY = -(Wire.read() << 8 | Wire.read());
-  GyroZ = (Wire.read() << 8 | Wire.read());
-  // AccX = Wire.read() << 8 | Wire.read();
-  // AccY = Wire.read() << 8 | Wire.read();
-  // AccZ = Wire.read() << 8 | Wire.read();
-  // temperature = Wire.read() << 8 | Wire.read();
-  // GyroX = Wire.read() << 8 | Wire.read();
-  // GyroY = Wire.read() << 8 | Wire.read();
-  // GyroZ = Wire.read() << 8 | Wire.read();
+  GyroX = Wire.read() << 8 | Wire.read();
+  GyroY = Wire.read() << 8 | Wire.read();
+  GyroZ = Wire.read() << 8 | Wire.read();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -136,11 +129,11 @@ void get_z()
 
   if(abs(AccY) < total_vector_acc) // Prevent asin function producing a NaN
   {
-    z.storage(0, 0) = asin((float)AccY/total_vector_acc) * -rad2deg; // roll
+    z.storage(0, 0) = asin((float)AccY/total_vector_acc) * rad2deg; // roll
   }
   if(abs(AccX) < total_vector_acc) // Prevent asin function producing a NaN
   {
-    z.storage(0, 1) = asin((float)AccX/total_vector_acc) * rad2deg; // pitch
+    z.storage(0, 1) = asin((float)AccX/total_vector_acc) * -rad2deg; // pitch
   }
   z.storage(0, 2) = (GyroX / gyro_scale_factor) - roll_rate_offset; // roll rate
   z.storage(0, 3) = (GyroY / gyro_scale_factor) - pitch_rate_offset; // pitch rate
