@@ -11,7 +11,6 @@
 long loop_timer;
 
 // Define MPU Variables
-const float acc_scale_factor = 4096; // From MPU6050 datasheet [g]
 const float gyro_scale_factor = 65.5; // From MPU6050 datasheet [deg/s]
 const float pitch_offset = 0.0; // [deg]
 const float roll_offset = 0.0; // [deg]
@@ -26,12 +25,11 @@ float total_vector_acc;
 // Kalman Filter Variables
 // Constant floats
 const float dt = 0.004;
-const float fade = 1.0;
 
 // Continuous Adjustment Variables
 int count = 0;
 BLA::Matrix<1, 1> epsilon = {0.0}; // Normalized square of the residual
-float epsilon_max = 2.0;
+float epsilon_max = 1.0;
 float Q_scale_factor = 100.0;
 
 // Varying matricies
@@ -45,7 +43,7 @@ BLA::Matrix<4, 4> P = {1.0, 0.0, 0.0, 0.0,
 BLA::Matrix<4, 4> Q = {pow(dt, 4) / 4, 0.0, 0.0, 0.0, 
                        0.0, pow(dt, 4) / 4, 0.0, 0.0,
                        0.0, 0.0, pow(dt, 2), 0.0,
-                       0.0, 0.0, 0.0, pow(dt, 2)};  // Untracked noise matrix
+                       0.0, 0.0, 0.0, pow(dt, 2)};  // Process noise matrix
 BLA::Matrix<4, 4> K = {0.0, 0.0, 0.0, 0.0, 
                        0.0, 0.0, 0.0, 0.0,
                        0.0, 0.0, 0.0, 0.0,
@@ -90,7 +88,7 @@ void setupMPUregisters()
   Wire.write(0x00); // Set the requested starting register
   Wire.endTransmission(); // End the transmission
 
-  //Configure the accelerometer (+/- 8g)
+  // Configure the accelerometer (+/- 8g)
   Wire.beginTransmission(mpu_address); // Start communicating with the MPU-6050
   Wire.write(0x1C); // Send the requested starting register
   Wire.write(0x10); // Set the requested starting register
@@ -149,7 +147,7 @@ void get_new_sensor_readings()
 void get_prediction()
 {
   x = (F * x) + (B * u);
-  P = ((F * (P * (~F))) * pow((pow(fade, 2)), 0.5)) + Q;
+  P = (F * (P * (~F))) * 1.0 + Q;
 }
 
 void get_kalman_gain()
@@ -181,7 +179,7 @@ void scale_Q()
     Q *= Q_scale_factor;
     count += 1;
   }
-  else if (count > 0)
+  else if (epsilon.storage(0, 0) < epsilon_max && count > 0)
   {
     Q /= Q_scale_factor;
     count -= 1;
