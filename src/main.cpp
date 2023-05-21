@@ -30,7 +30,7 @@ const float dt = 0.004;
 int count = 0;
 BLA::Matrix<1, 1> epsilon = {0.0}; // Normalized square of the residual
 float epsilon_max = 1.0;
-float Q_scale_factor = 100.0;
+float Q_scale_factor = 1000.0;
 
 // Varying matricies
 BLA::Matrix<4, 1> x = {0.0, 0.0, 0.0, 0.0}; // State [roll, pitch, roll_rate, pitch_rate]
@@ -55,8 +55,8 @@ BLA::Matrix<4, 4> inv = {0.0, 0.0, 0.0, 0.0,
 
 // Constant matricies
 const BLA::Matrix<4, 1> u = {0.0, 0.0, 0.0, 0.0}; // Control vector
-const BLA::Matrix<4, 4> R = {10.0, 0.0, 0.0, 0.0, 
-                             0.0, 10.0, 0.0, 0.0,
+const BLA::Matrix<4, 4> R = {50.0, 0.0, 0.0, 0.0, 
+                             0.0, 50.0, 0.0, 0.0,
                              0.0, 0.0, 10.0, 0.0,
                              0.0, 0.0, 0.0, 10.0}; // Measurement covariance matrix
 const BLA::Matrix<4, 4> F = {1.0, 0.0, dt, 0.0, 
@@ -239,10 +239,8 @@ void loop()
   get_kalman_gain();
   get_update();
 
-  // Calculate residual
-  get_residual();
-
   // Continuous adjustment step
+  get_residual();
   get_epsilon();
   scale_Q();
 
