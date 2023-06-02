@@ -9,7 +9,7 @@ rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 12})
 rc('text', usetex=True)
 
 # GET DATA
-df = pd.read_csv('KF_001_mpu6050.csv')
+df = pd.read_csv('KF_003_with_scaling.csv')
 
 # CONSTANTS
 dt = 0.004 # [s]
@@ -80,8 +80,8 @@ ax3[1].plot(time, z_2)
 ax3[1].plot(time, x_2)
 ax3[0].grid()
 ax3[1].grid()
-ax3[0].set_ylabel("Roll $[^{\circ}]$")
-ax3[1].set_ylabel("Roll rate $[^{\circ}/s]$")
+ax3[0].set_ylabel("$\phi [^{\circ}]$")
+ax3[1].set_ylabel("$\dot{\phi} [^{\circ}/s]$")
 ax3[1].set_xlabel("Time $[s]$")
 ax3[0].legend(['Accelerometer', 'Filter'])
 ax3[1].legend(['Gyroscope', 'Filter'])
