@@ -200,6 +200,8 @@ void setup()
   // Serial.print("theta");
   // Serial.print(",");
   // Serial.println("psi");
+  Serial.print("time");
+  Serial.print(",");
   Serial.print("z_0");
   Serial.print(",");
   Serial.print("z_1");
@@ -249,6 +251,8 @@ void loop()
   // Serial.print(x.storage(0, 0)); // theta
   // Serial.print(",");
   // Serial.println("0"); // psi
+  Serial.print(micros());
+  Serial.print(",");
   Serial.print(z.storage(0, 0));
   Serial.print(",");
   Serial.print(z.storage(0, 1));

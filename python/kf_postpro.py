@@ -3,6 +3,10 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib import rc
+
+rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 12})
+rc('text', usetex=True)
 
 # GET DATA
 df = pd.read_csv('KF_001_mpu6050.csv')
@@ -20,7 +24,8 @@ def vectorized_integration(input_vector, dt):
         output_vector.append(output_vector[i] + (input_vector[i] * dt))
     return np.array(output_vector[1:])
 
-time = get_time(df, dt, freq)
+# time = get_time(df, dt, freq)
+time = df['time'].to_numpy() * 1e-6
 z_0 = df['z_0'].to_numpy()
 z_1 = df['z_1'].to_numpy()
 z_2 = df['z_2'].to_numpy()
@@ -67,5 +72,18 @@ ax2[2].grid()
 ax2[0].set_ylabel("Pitch [deg]")
 ax2[1].set_ylabel("Pitch rate [deg/s]")
 ax2[2].set_ylabel("epsilon")
+
+fig3, ax3 = plt.subplots(2)
+ax3[0].plot(time, z_0)
+ax3[0].plot(time, x_0)
+ax3[1].plot(time, z_2)
+ax3[1].plot(time, x_2)
+ax3[0].grid()
+ax3[1].grid()
+ax3[0].set_ylabel("Roll $[^{\circ}]$")
+ax3[1].set_ylabel("Roll rate $[^{\circ}/s]$")
+ax3[1].set_xlabel("Time $[s]$")
+ax3[0].legend(['Accelerometer', 'Filter'])
+ax3[1].legend(['Gyroscope', 'Filter'])
 
 plt.show()
